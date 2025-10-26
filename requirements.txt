@@ -1,0 +1,6 @@
+notebook=7.4.7
+pandas=2.3.3
+seaborn=0.13.2
+mlflow=3.5.1
+kagglehub=0.3.13
+ipykernel=7.0.1

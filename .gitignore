@@ -33,3 +33,26 @@ Thumbs.db
 # -----------------------------
 *.env
 .envrc
+
+# -----------------------------
+# MLflow
+# -----------------------------
+# Diretório padrão de tracking local
+mlruns/
+
+# Logs e metadados do MLflow
+mlartifacts/
+mlflow.db
+mlflow.log
+
+# Arquivos temporários de tracking
+*.tmp
+*.bak
+
+# -----------------------------
+# Outros diretórios de cache / experimentos
+# -----------------------------
+.cache/
+logs/
+outputs/
+notebooks/artifacts_parquets
