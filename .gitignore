@@ -55,4 +55,4 @@ mlflow.log
 .cache/
 logs/
 outputs/
-notebooks/artifacts_parquets
+artifacts
