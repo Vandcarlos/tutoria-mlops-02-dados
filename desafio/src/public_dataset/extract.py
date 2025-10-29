@@ -1,9 +1,19 @@
-import requests
+import kagglehub
+import os
 import pandas as pd
-from io import StringIO
+import mlflow
+import src.mlflow_utils as mlflow_utils
 
-def extract(dataset_url: str) -> pd.DataFrame:
-    print(f"🔹 Extraindo dados de {dataset_url}")
-    response = requests.get(dataset_url)
-    response.raise_for_status()
-    return pd.read_csv(StringIO(response.text))
+def extract(run_id: str | None, dataset_kaggle_hub: str):
+    with mlflow_utils.use_run(run_id=run_id):
+        mlflow.log_param("dataset", dataset_kaggle_hub)
+
+        print(f"🔹 Extract kaggle dataset {dataset_kaggle_hub}")
+        dataset_path = kagglehub.dataset_download(dataset_kaggle_hub)
+        print(f"dataset path: {dataset_path}", f"dataset files: {os.listdir(dataset_path)}")
+
+        dataset_csv_path = os.path.join(dataset_path, os.listdir(dataset_path)[0])
+        print(f"dataset csv path: {dataset_csv_path}")
+
+        df_raw = pd.read_csv(dataset_csv_path)
+        mlflow_utils.log_artifact(df=df_raw, name="raw")

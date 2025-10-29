@@ -10,35 +10,54 @@ from src.public_dataset.extract import extract
 from src.public_dataset.transform import transform
 from src.public_dataset.load import load
 
-DATASET_URL = "https://raw.githubusercontent.com/mwaskom/seaborn-data/master/tips.csv"
+DATASET_KAGGLE_HUB = os.getenv("DATASET_KAGGLE_HUB")
+MLFLOW_EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT_NAME")
+
+def start_task(**ctx):
+    mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
+
+    run = mlflow.start_run(run_name=f"etl-{ctx['logical_date']}")
+
+    mlflow.set_tags({
+        "dag_id": ctx["dag"].dag_id,
+        "execution_date": str(ctx["logical_date"]),
+        "env": os.getenv("ENV", "local"),
+    })
+
+    print("tracking_uri:", mlflow.get_tracking_uri())
+    print("artifact_uri:", run.info.artifact_uri)
+
+    return run.info.run_id
 
 with DAG(
     dag_id="etl_public_dataset_dag",
     description="Pipeline ETL de dataset público",
     start_date=datetime(2025, 1, 1),
-    schedule=None,
+    schedule="@daily",
     catchup=False,
+    max_active_runs=1,
     tags=["etl", "public"],
+    default_args={"retries": 1}
 ) as dag:
-    mlflow
-    t1 = PythonOperator(task_id="extract", python_callable=extract_task)
-    t2 = PythonOperator(task_id="transform", python_callable=transform_task)
-    t3 = PythonOperator(task_id="load", python_callable=load_task)
-    t1 >> t2 >> t3
+    t0 = PythonOperator(task_id="start", python_callable=start_task)
 
-def extract_task(**context):
-    df = extract(DATASET_URL)
-    context["ti"].xcom_push(key="df_shape", value=df.shape)
-    df.to_csv("/opt/airflow/data/tmp_extract.csv", index=False)
+    t1 = PythonOperator(task_id="extract",
+                        python_callable=extract,
+                        op_kwargs={
+                            "run_id": "{{ ti.xcom_pull(task_ids='start') }}",
+                            "dataset_kaggle_hub": DATASET_KAGGLE_HUB
+                        })
 
-def transform_task(**context):
-    import pandas as pd
-    df = pd.read_csv("/opt/airflow/data/tmp_extract.csv")
-    df_clean = transform(df)
-    df_clean.to_csv("/opt/airflow/data/tmp_transform.csv", index=False)
-    context["ti"].xcom_push(key="clean_shape", value=df_clean.shape)
+    t2 = PythonOperator(task_id="transform",
+                        python_callable=transform,
+                        op_kwargs={
+                            "run_id": "{{ ti.xcom_pull(task_ids='start') }}"
+                        })
 
-def load_task(**context):
-    import pandas as pd
-    df_clean = pd.read_csv("/opt/airflow/data/tmp_transform.csv")
-    load(df_clean)
+    t3 = PythonOperator(task_id="load",
+                        python_callable=load,
+                        op_kwargs={
+                            "run_id": "{{ ti.xcom_pull(task_ids='start') }}"
+                        })
+
+    t0 >> t1 >> t2 >> t3
